@@ -4,7 +4,7 @@ You will receive an image. The image is a screenshot of an Instagram post or Ins
 
 Your task is to analyze the image the way a real human Instagram viewer would understand it — not just describing objects, but interpreting meaning, context, mood, and intention.
 
-This image is a screenshot of an Instagram post or Instagram story from @example 'Example Influencer' account.
+This image is a screenshot of an Instagram post or Instagram story from the influencer's account.
 
 Perform a deep, human-like interpretation of the content.
 

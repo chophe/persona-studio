@@ -8,6 +8,5 @@ build/
 htmlcov/
 .pytest_cache/
 .mypy_cache/
-influencers/*/images/
-influencers/*/output/
-influencers/*/portrait.*
+influencers/*/
+!influencers/_template/

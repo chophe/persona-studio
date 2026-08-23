@@ -3,8 +3,8 @@
 Config-driven influencer persona pipeline. Add a new influencer by dropping a
 folder under `influencers/` — the code stays generic.
 
-Generalized from `influencer-rp` / `influencer-rp`: same LangGraph + OpenAI-compatible stack,
-but personas, portraits, and special prompts are pure configuration.
+A LangGraph + OpenAI-compatible pipeline in which personas, portraits, and
+special prompts are pure configuration.
 
 ## Layout
 
