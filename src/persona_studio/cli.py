@@ -16,10 +16,16 @@ from persona_studio.config import (
     load_influencer,
 )
 from persona_studio.image_analyzer import run_analysis
-from persona_studio.language import lang_label, normalize_lang
+from persona_studio.language import lang_label
 from persona_studio.prompts import list_prompts
 from persona_studio.settings import resolve_settings
 from persona_studio.story import generate_story, synthesize_reports
+from persona_studio.ui import (
+    confirm,
+    interactive_mode,
+    pick_folder,
+    pick_lang,
+)
 
 app = typer.Typer(
     name="persona-studio",
@@ -29,12 +35,20 @@ app = typer.Typer(
 console = Console()
 
 
-def _lang(lang: str) -> str:
-    try:
-        return normalize_lang(lang)
-    except ValueError as exc:
-        console.print(f"[red]Error:[/red] {exc}")
+def _lang(lang: str | None) -> str:
+    if lang and lang not in ("fa", "en"):
+        console.print(f"[red]Error:[/red] Unsupported language '{lang}'. Choose from: fa, en.")
         raise typer.Exit(1)
+    return lang or "fa"
+
+
+def _interactive(flag: bool) -> bool:
+    if not flag:
+        return False
+    if not interactive_mode():
+        console.print("[yellow]stdin is not a TTY; continuing non-interactively.[/yellow]")
+        return False
+    return True
 
 
 def _show_lang(lang: str) -> str:
@@ -120,7 +134,8 @@ def analyze(
     images_dir: Optional[Path] = typer.Option(None, "--images", help="Override images folder"),
     output_dir: Optional[Path] = typer.Option(None, "--out", help="Override output folder"),
     no_persona: bool = typer.Option(False, "--no-persona", help="Skip persona context injection"),
-    lang: str = typer.Option("fa", "--lang", "-l", help="Result language: fa (Persian) | en"),
+    lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Result language: fa (Persian) | en"),
+    interactive: bool = typer.Option(False, "--interactive", "-i", help="Prompt for inputs"),
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
@@ -129,6 +144,12 @@ def analyze(
     """Analyze a folder of images for an influencer using a named prompt."""
     influencer = _resolve(slug)
     settings = _settings(influencer, model, base_url, api_key, max_workers)
+    if _interactive(interactive):
+        lang = pick_lang(lang)
+        if images_dir is None:
+            images_dir = pick_folder("Images folder", influencer.images_dir())
+        if output_dir is None:
+            output_dir = pick_folder("Output folder", influencer.reports_dir() / prompt_name)
     lang = _lang(lang)
     console.print(
         f"[dim]Influencer:[/dim] {influencer.display_name} | "
@@ -158,7 +179,8 @@ def synthesize(
     prompt_name: str = typer.Argument(...),
     input_dirs: list[Path] = typer.Argument(..., help="One or more dirs of markdown reports"),
     output_dir: Optional[Path] = typer.Option(None, "--out"),
-    lang: str = typer.Option("fa", "--lang", "-l", help="Result language: fa (Persian) | en"),
+    lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Result language: fa (Persian) | en"),
+    interactive: bool = typer.Option(False, "--interactive", "-i", help="Prompt for inputs"),
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
@@ -166,6 +188,12 @@ def synthesize(
     """Batch-synthesize markdown reports (e.g. per-image analyses) into narrative summaries."""
     influencer = _resolve(slug)
     settings = _settings(influencer, model, base_url, api_key)
+    if _interactive(interactive):
+        lang = pick_lang(lang)
+        if not input_dirs:
+            input_dirs = [pick_folder("Reports folder")]
+        if output_dir is None:
+            output_dir = pick_folder("Synthesis output", influencer.syntheses_dir() / prompt_name)
     lang = _lang(lang)
     console.print(
         f"[dim]Influencer:[/dim] {influencer.display_name} | "
@@ -187,7 +215,8 @@ def story(
     slug: str,
     prompt_name: str = typer.Argument(..., help="Story prompt name (e.g. task3(c)-story)"),
     context: list[Path] = typer.Option([], "--context", help="Extra markdown context files"),
-    lang: str = typer.Option("fa", "--lang", "-l", help="Result language: fa (Persian) | en"),
+    lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Result language: fa (Persian) | en"),
+    interactive: bool = typer.Option(False, "--interactive", "-i", help="Prompt for inputs"),
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
@@ -195,6 +224,10 @@ def story(
     """Generate a story/RP content from the influencer persona plus a named prompt."""
     influencer = _resolve(slug)
     settings = _settings(influencer, model, base_url, api_key)
+    if _interactive(interactive):
+        lang = pick_lang(lang)
+        if not context and confirm("Add extra context files?", default=False):
+            context = [pick_folder("Context folder")]
     lang = _lang(lang)
     console.print(
         f"[dim]Influencer:[/dim] {influencer.display_name} | "

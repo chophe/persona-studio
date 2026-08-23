@@ -9,12 +9,12 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 from rich.console import Console
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
 
 from persona_studio.config import InfluencerConfig
 from persona_studio.language import inject_language, lang_suffix, normalize_lang
 from persona_studio.prompts import list_images, load_prompt
 from persona_studio.settings import ApiSettings, make_llm
+from persona_studio.ui.progress import live_progress
 
 console = Console()
 
@@ -140,14 +140,7 @@ def run_analysis(
         result = graph.invoke(state, {"configurable": {"thread_id": image_path.name}})
         return result
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Analyzing images...", total=len(images))
+    with live_progress(len(images), title=f"Analyzing {len(images)} images ({settings.model})") as advance:
         with ThreadPoolExecutor(max_workers=settings.max_workers) as executor:
             futures = {executor.submit(analyze_one, img): img for img in images}
             for future in as_completed(futures):
@@ -174,6 +167,6 @@ def run_analysis(
                     }
                 except Exception as exc:
                     results[image_path.name] = {"status": "error", "error": str(exc)}
-                progress.advance(task)
+                advance()
 
     return results

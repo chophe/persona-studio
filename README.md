@@ -87,6 +87,26 @@ model responds in that language.
 Persona text, special-prompt blocks, and handle are automatically prepended as
 context to every analysis and story request.
 
+## Interactive mode
+
+Add `--interactive`/`-i` to any pipeline command to be prompted for the optional
+inputs (language, folders) instead of passing them on the command line:
+
+```bash
+uv run persona-studio analyze example-influencer human-level-interpretation --interactive
+uv run persona-studio synthesize example-influencer task3(a)-longitudinal-biography --interactive
+```
+
+Interactive prompts are built with `questionary`; when stdin is not a TTY the
+flag is ignored and the command proceeds non-interactively.
+
+## Terminal UX
+
+- `typer` — command definitions and `--help`.
+- `rich` — panels, tables, and colored summaries.
+- `alive-progress` — animated progress bars for image analysis and synthesis
+  batches, and an indeterminate spinner for story generation.
+
 ## Tests
 
 ```bash

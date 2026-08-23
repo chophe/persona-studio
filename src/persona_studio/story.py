@@ -9,6 +9,7 @@ from persona_studio.config import InfluencerConfig
 from persona_studio.language import inject_language, lang_suffix, normalize_lang
 from persona_studio.prompts import load_prompt
 from persona_studio.settings import ApiSettings, make_llm
+from persona_studio.ui.progress import live_progress, live_spinner
 
 console = Console()
 
@@ -87,18 +88,19 @@ def synthesize_reports(
     console.print(f"Processing {len(batches)} batch(es) with model {settings.synthesis_model}")
 
     outputs: list[str] = []
-    for i, batch in enumerate(batches, start=1):
-        joined = "\n\n---\n\n".join(batch)
-        message = HumanMessage(content=f"{prompt_text}\n\n---\n\n{joined}")
-        response = llm.invoke([message])
-        output_file = out_dir / f"synthesis_batch_{i}{suffix}.md"
-        output_file.write_text(
-            f"# Synthesis Batch {i}\n\n**Model:** {settings.synthesis_model}\n"
-            f"**Prompt:** {prompt_name}\n**Language:** {lang}\n\n## Result\n\n{response.content}",
-            encoding="utf-8",
-        )
-        outputs.append(str(response.content))
-        console.print(f"[green]✓[/green] Wrote {output_file}")
+    with live_progress(len(batches), title=f"Synthesizing {len(batches)} batch(es)") as advance:
+        for i, batch in enumerate(batches, start=1):
+            joined = "\n\n---\n\n".join(batch)
+            message = HumanMessage(content=f"{prompt_text}\n\n---\n\n{joined}")
+            response = llm.invoke([message])
+            output_file = out_dir / f"synthesis_batch_{i}{suffix}.md"
+            output_file.write_text(
+                f"# Synthesis Batch {i}\n\n**Model:** {settings.synthesis_model}\n"
+                f"**Prompt:** {prompt_name}\n**Language:** {lang}\n\n## Result\n\n{response.content}",
+                encoding="utf-8",
+            )
+            outputs.append(str(response.content))
+            advance()
 
     master = out_dir / f"master_synthesis{suffix}.md"
     if len(outputs) > 1:
@@ -140,12 +142,11 @@ def generate_story(
         temperature=influencer.defaults.temperature,
         max_tokens=influencer.defaults.max_tokens * 2,
     )
-    message = HumanMessage(content="\n\n---\n\n".join(parts))
-    response = llm.invoke([message])
-
     existing = sorted(out_dir.glob(f"{prompt_name}-*{suffix}.md"))
     next_index = len(existing) + 1
     output_file = out_dir / f"{prompt_name}-{next_index:03d}{suffix}.md"
+    with live_spinner(f"Generating {prompt_name}..."):
+        response = llm.invoke([HumanMessage(content="\n\n---\n\n".join(parts))])
     output_file.write_text(
         f"# {prompt_name} — {influencer.display_name}\n\n"
         f"**Model:** {settings.model}\n**Language:** {lang}\n\n{response.content}",
