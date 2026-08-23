@@ -58,12 +58,15 @@ uv run persona-studio personas
 uv run persona-studio show example-influencer
 uv run persona-studio prompts example-influencer
 
-# stage 1: analyze screenshots -> per-image markdown reports
+# stage 1: analyze screenshots -> per-image markdown reports (default Persian)
 uv run persona-studio analyze example-influencer human-level-interpretation
+
+# English output: filenames get -en, content directives switch language
+uv run persona-studio analyze example-influencer human-level-interpretation --lang en
 
 # override folders/model for a run
 uv run persona-studio analyze example-influencer fashion-extraction \
-  --images ./new_batch --out ./out/batch1 --model gemini-2.5-flash
+  --images ./new_batch --out ./out/batch1 --model gemini-2.5-flash --lang fa
 
 # stage 2: synthesize reports into narrative summaries
 uv run persona-studio synthesize example-influencer task3(a)-longitudinal-biography \
@@ -72,8 +75,14 @@ uv run persona-studio synthesize example-influencer task3(a)-longitudinal-biogra
 # stage 3: generate stories / RP content from persona + prompt
 uv run persona-studio story example-influencer task3(c)-story
 uv run persona-studio story example-influencer task3(b)-rp-character \
-  --context influencers/example-influencer/output/syntheses/task3(a)-longitudinal-biography/master_synthesis.md
+  --context influencers/example-influencer/output/syntheses/task3(a)-longitudinal-biography/master_synthesis-fa.md
 ```
+
+**Language:** every pipeline stage defaults to Persian (`--lang fa`). Pass
+`--lang en` for English. The chosen language is appended to output filenames as
+`-fa` or `-en` (e.g. `photo-fa.md`, `synthesis_batch_1-en.md`) and recorded in
+the report header, and a language directive is injected into the prompt so the
+model responds in that language.
 
 Persona text, special-prompt blocks, and handle are automatically prepended as
 context to every analysis and story request.

@@ -16,6 +16,7 @@ from persona_studio.config import (
     load_influencer,
 )
 from persona_studio.image_analyzer import run_analysis
+from persona_studio.language import lang_label, normalize_lang
 from persona_studio.prompts import list_prompts
 from persona_studio.settings import resolve_settings
 from persona_studio.story import generate_story, synthesize_reports
@@ -26,6 +27,18 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
+
+
+def _lang(lang: str) -> str:
+    try:
+        return normalize_lang(lang)
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+
+def _show_lang(lang: str) -> str:
+    return f"{lang} ({lang_label(lang)})"
 
 
 def _resolve(slug: str):
@@ -107,6 +120,7 @@ def analyze(
     images_dir: Optional[Path] = typer.Option(None, "--images", help="Override images folder"),
     output_dir: Optional[Path] = typer.Option(None, "--out", help="Override output folder"),
     no_persona: bool = typer.Option(False, "--no-persona", help="Skip persona context injection"),
+    lang: str = typer.Option("fa", "--lang", "-l", help="Result language: fa (Persian) | en"),
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
@@ -115,6 +129,12 @@ def analyze(
     """Analyze a folder of images for an influencer using a named prompt."""
     influencer = _resolve(slug)
     settings = _settings(influencer, model, base_url, api_key, max_workers)
+    lang = _lang(lang)
+    console.print(
+        f"[dim]Influencer:[/dim] {influencer.display_name} | "
+        f"[dim]Language:[/dim] {_show_lang(lang)} | "
+        f"[dim]Prompt:[/dim] {prompt_name}"
+    )
     results = run_analysis(
         influencer,
         prompt_name,
@@ -122,6 +142,7 @@ def analyze(
         images_dir=images_dir,
         output_dir=output_dir,
         include_persona=not no_persona,
+        lang=lang,
     )
     success = sum(1 for r in results.values() if r["status"] == "success")
     errors = len(results) - success
@@ -137,6 +158,7 @@ def synthesize(
     prompt_name: str = typer.Argument(...),
     input_dirs: list[Path] = typer.Argument(..., help="One or more dirs of markdown reports"),
     output_dir: Optional[Path] = typer.Option(None, "--out"),
+    lang: str = typer.Option("fa", "--lang", "-l", help="Result language: fa (Persian) | en"),
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
@@ -144,9 +166,15 @@ def synthesize(
     """Batch-synthesize markdown reports (e.g. per-image analyses) into narrative summaries."""
     influencer = _resolve(slug)
     settings = _settings(influencer, model, base_url, api_key)
+    lang = _lang(lang)
+    console.print(
+        f"[dim]Influencer:[/dim] {influencer.display_name} | "
+        f"[dim]Language:[/dim] {_show_lang(lang)} | "
+        f"[dim]Prompt:[/dim] {prompt_name}"
+    )
     try:
         master = synthesize_reports(
-            influencer, prompt_name, settings, list(input_dirs), output_dir
+            influencer, prompt_name, settings, list(input_dirs), output_dir, lang=lang
         )
     except ValueError as exc:
         console.print(f"[red]Error:[/red] {exc}")
@@ -159,6 +187,7 @@ def story(
     slug: str,
     prompt_name: str = typer.Argument(..., help="Story prompt name (e.g. task3(c)-story)"),
     context: list[Path] = typer.Option([], "--context", help="Extra markdown context files"),
+    lang: str = typer.Option("fa", "--lang", "-l", help="Result language: fa (Persian) | en"),
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
@@ -166,7 +195,13 @@ def story(
     """Generate a story/RP content from the influencer persona plus a named prompt."""
     influencer = _resolve(slug)
     settings = _settings(influencer, model, base_url, api_key)
-    output_file = generate_story(influencer, prompt_name, settings, list(context))
+    lang = _lang(lang)
+    console.print(
+        f"[dim]Influencer:[/dim] {influencer.display_name} | "
+        f"[dim]Language:[/dim] {_show_lang(lang)} | "
+        f"[dim]Prompt:[/dim] {prompt_name}"
+    )
+    output_file = generate_story(influencer, prompt_name, settings, list(context), lang=lang)
     console.print(f"[bold green]Story written:[/bold green] {output_file}")
 
 

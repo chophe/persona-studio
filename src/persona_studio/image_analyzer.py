@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
 
 from persona_studio.config import InfluencerConfig
+from persona_studio.language import inject_language, lang_suffix, normalize_lang
 from persona_studio.prompts import list_images, load_prompt
 from persona_studio.settings import ApiSettings, make_llm
 
@@ -98,7 +99,10 @@ def run_analysis(
     images_dir: Path | None = None,
     output_dir: Path | None = None,
     include_persona: bool = True,
+    lang: str = "fa",
 ) -> dict[str, dict[str, Any]]:
+    lang = normalize_lang(lang)
+    suffix = lang_suffix(lang)
     source_dir = images_dir or influencer.images_dir()
     out_dir = output_dir or influencer.reports_dir() / prompt_name
     images = list_images(source_dir)
@@ -113,6 +117,7 @@ def run_analysis(
             prompt_text = f"{context_block}\n\n---\n\n{prompt_text}"
         except FileNotFoundError:
             console.print("[yellow]Persona file missing; analyzing without persona context.[/yellow]")
+    prompt_text = inject_language(prompt_text, lang)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     graph = build_workflow().compile(checkpointer=MemorySaver())
@@ -151,13 +156,14 @@ def run_analysis(
                     result = future.result()
                     analysis = result["analysis_result"]
                     error = result.get("error")
-                    output_file = out_dir / f"{image_path.stem}.md"
+                    output_file = out_dir / f"{image_path.stem}{suffix}.md"
                     header = (
                         f"# Analysis of {image_path.name}\n\n"
                         f"**Influencer:** {influencer.display_name}\n"
                         f"**Image Path:** {image_path}\n"
                         f"**Model Used:** {settings.model}\n"
                         f"**Prompt:** {prompt_name}\n"
+                        f"**Language:** {lang}\n"
                         f"**Workflow:** LangGraph\n\n"
                         f"## Analysis Result\n\n"
                     )
