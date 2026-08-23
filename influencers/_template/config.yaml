@@ -1,0 +1,23 @@
+slug: _template
+name:
+  english: Example Influencer
+  persian: ""
+handle: "@example"
+persona_file: persona.md
+portrait: portrait.jpg
+special_prompts:
+  - special/style-notes.md
+  - special/rp-rules.md
+defaults:
+  model: gpt-4o-mini
+  vision_model: null
+  synthesis_model: null
+  temperature: 0.1
+  max_tokens: 4096
+  max_workers: 3
+  context_window: 128000
+paths:
+  images: images
+  reports: output/reports
+  syntheses: output/syntheses
+  stories: stories
