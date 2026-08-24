@@ -190,6 +190,7 @@ def analyze(
     images_dir: Optional[Path] = typer.Option(None, "--images", help="Override images folder"),
     output_dir: Optional[Path] = typer.Option(None, "--out", help="Override output folder"),
     no_persona: bool = typer.Option(False, "--no-persona", help="Skip persona context injection"),
+    rewrite: bool = typer.Option(False, "--rewrite", "-r", help="Re-analyze images even if a report already exists"),
     lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Result language: fa (Persian) | en"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Prompt for inputs"),
     model: Optional[str] = typer.Option(None),
@@ -229,12 +230,14 @@ def analyze(
         output_dir=output_dir,
         include_persona=not no_persona,
         lang=lang,
+        rewrite=rewrite,
     )
     success = sum(1 for r in results.values() if r["status"] == "success")
-    errors = len(results) - success
+    skipped = sum(1 for r in results.values() if r["status"] == "skipped")
+    errors = sum(1 for r in results.values() if r["status"] == "error")
     console.print(
         f"\n[bold green]Done.[/bold green] Total: {len(results)} | "
-        f"Success: {success} | Errors: {errors}"
+        f"Success: {success} | Skipped: {skipped} | Errors: {errors}"
     )
 
 

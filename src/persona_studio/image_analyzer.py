@@ -50,6 +50,14 @@ def encode_image(image_path: Path) -> tuple[str, str]:
     )
 
 
+def _has_error(output_file: Path) -> bool:
+    """True when an existing report looks like a failed analysis (should be re-run)."""
+    try:
+        return "Error analyzing image" in output_file.read_text(encoding="utf-8")
+    except OSError:
+        return True
+
+
 def build_workflow() -> StateGraph:
     workflow = StateGraph(ImageAnalysisState)
 
@@ -100,6 +108,7 @@ def run_analysis(
     output_dir: Path | None = None,
     include_persona: bool = True,
     lang: str = "fa",
+    rewrite: bool = False,
 ) -> dict[str, dict[str, Any]]:
     lang = normalize_lang(lang)
     suffix = lang_suffix(lang)
@@ -120,8 +129,29 @@ def run_analysis(
     prompt_text = inject_language(prompt_text, lang)
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    graph = build_workflow().compile(checkpointer=MemorySaver())
     results: dict[str, dict[str, Any]] = {}
+
+    def output_file_for(image_path: Path) -> Path:
+        return out_dir / f"{image_path.stem}{suffix}.md"
+
+    if not rewrite:
+        pending: list[Path] = []
+        for image_path in images:
+            output_file = output_file_for(image_path)
+            if output_file.exists() and not _has_error(output_file):
+                results[image_path.name] = {
+                    "status": "skipped",
+                    "output_file": str(output_file),
+                }
+                console.print(f"[dim]Skipping {image_path.name}: report already exists[/dim]")
+            else:
+                pending.append(image_path)
+        images = pending
+        if not images:
+            console.print("[green]All reports already exist; nothing to analyze.[/green]")
+            return results
+
+    graph = build_workflow().compile(checkpointer=MemorySaver())
 
     def analyze_one(image_path: Path) -> dict[str, Any]:
         b64, mime = encode_image(image_path)
@@ -149,7 +179,7 @@ def run_analysis(
                     result = future.result()
                     analysis = result["analysis_result"]
                     error = result.get("error")
-                    output_file = out_dir / f"{image_path.stem}{suffix}.md"
+                    output_file = output_file_for(image_path)
                     header = (
                         f"# Analysis of {image_path.name}\n\n"
                         f"**Influencer:** {influencer.display_name}\n"
