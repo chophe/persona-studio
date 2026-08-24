@@ -61,5 +61,5 @@ def list_images(folder: Path) -> list[Path]:
     if not folder.is_dir():
         return []
     return sorted(
-        f for f in folder.iterdir() if f.suffix.lower() in _IMAGE_EXTENSIONS and f.is_file()
+        f for f in folder.rglob("*") if f.suffix.lower() in _IMAGE_EXTENSIONS and f.is_file()
     )

@@ -71,3 +71,13 @@ class TestListImages:
 
     def test_missing_dir_returns_empty(self, tmp_path):
         assert prompts_mod.list_images(tmp_path / "nope") == []
+
+    def test_scans_subfolders(self, tmp_path):
+        (tmp_path / "a.jpg").write_bytes(b"x")
+        sub = tmp_path / "batch1" / "nested"
+        sub.mkdir(parents=True)
+        (sub / "b.jpg").write_bytes(b"x")
+        (tmp_path / "batch2.txt").write_bytes(b"x")
+        images = prompts_mod.list_images(tmp_path)
+        names = {i.name for i in images}
+        assert names == {"a.jpg", "b.jpg"}
