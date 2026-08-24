@@ -15,9 +15,10 @@ from persona_studio.config import (
     list_influencer_slugs,
     load_influencer,
 )
+from persona_studio.health import run_health_checks
 from persona_studio.image_analyzer import run_analysis
 from persona_studio.language import lang_label
-from persona_studio.prompts import list_prompts
+from persona_studio.prompts import list_images, list_prompts
 from persona_studio.settings import resolve_settings
 from persona_studio.story import generate_story, synthesize_reports
 from persona_studio.ui import (
@@ -68,6 +69,61 @@ def _settings(influencer=None, model=None, base_url=None, api_key=None, max_work
         return resolve_settings(influencer, model, base_url, api_key, max_workers)
     except ValueError as exc:
         console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+
+def _preflight(influencer, strict: bool = False) -> None:
+    report = run_health_checks(influencer.slug)
+    issues = [c for c in report.checks if not c.ok]
+    if not issues:
+        return
+    console.print("[bold yellow]Preflight:[/bold yellow]")
+    for check in issues:
+        tag = "[yellow]warn[/yellow]" if check.warning_only else "[red]fail[/red]"
+        console.print(f"  {tag} {check.name}: {check.detail}")
+    if strict and report.failures:
+        console.print("[red]Aborting: preflight failures (--strict).[/red]")
+        raise typer.Exit(1)
+
+
+def _render_health(report) -> None:
+    table = Table(title=f"Health: {report.slug}")
+    table.add_column("Check", style="cyan")
+    table.add_column("Status", justify="center")
+    table.add_column("Detail", style="green")
+    for check in report.checks:
+        if check.ok:
+            status = "[green]✓ ok[/green]"
+        elif check.warning_only:
+            status = "[yellow]⚠ warn[/yellow]"
+        else:
+            status = "[red]✗ fail[/red]"
+        table.add_row(check.name, status, check.detail)
+    console.print(table)
+
+
+@app.command()
+def doctor(slug: Optional[str] = typer.Argument(None, help="Influencer slug. Checks all when omitted.")):
+    """Health-check an influencer: config, persona, portrait, images, API key."""
+    targets = [slug] if slug else list_influencer_slugs()
+    if not targets:
+        console.print("[yellow]No influencers configured. Run:[/yellow] persona-studio init <slug>")
+        raise typer.Exit(1)
+    any_fail = False
+    for target in targets:
+        report = run_health_checks(target)
+        _render_health(report)
+        failures = report.failures
+        warnings = report.warnings
+        if failures or warnings:
+            any_fail = any_fail or bool(failures)
+            label = f"{len(failures)} failure(s), {len(warnings)} warning(s)"
+            color = "red" if failures else "yellow"
+            glyph = "✗" if failures else "⚠"
+            console.print(f"[{color}]{glyph} {target}: {label}[/{color}]")
+        else:
+            console.print(f"[green]✓ {target}: all checks passed[/green]")
+    if any_fail:
         raise typer.Exit(1)
 
 
@@ -140,6 +196,7 @@ def analyze(
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
     max_workers: Optional[int] = typer.Option(None),
+    strict: bool = typer.Option(False, "--strict", help="Abort on preflight failures"),
 ):
     """Analyze a folder of images for an influencer using a named prompt."""
     influencer = _resolve(slug)
@@ -151,6 +208,14 @@ def analyze(
         if output_dir is None:
             output_dir = pick_folder("Output folder", influencer.reports_dir() / prompt_name)
     lang = _lang(lang)
+    _preflight(influencer, strict=strict)
+    source_dir = images_dir or influencer.images_dir()
+    if not list_images(source_dir):
+        console.print(
+            f"[red]No images found in {source_dir}.[/red] "
+            f"Run [cyan]persona-studio doctor {slug}[/cyan] for details."
+        )
+        raise typer.Exit(1)
     console.print(
         f"[dim]Influencer:[/dim] {influencer.display_name} | "
         f"[dim]Language:[/dim] {_show_lang(lang)} | "
@@ -184,6 +249,7 @@ def synthesize(
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
+    strict: bool = typer.Option(False, "--strict", help="Abort on preflight failures"),
 ):
     """Batch-synthesize markdown reports (e.g. per-image analyses) into narrative summaries."""
     influencer = _resolve(slug)
@@ -195,6 +261,7 @@ def synthesize(
         if output_dir is None:
             output_dir = pick_folder("Synthesis output", influencer.syntheses_dir() / prompt_name)
     lang = _lang(lang)
+    _preflight(influencer, strict=strict)
     console.print(
         f"[dim]Influencer:[/dim] {influencer.display_name} | "
         f"[dim]Language:[/dim] {_show_lang(lang)} | "
@@ -220,6 +287,7 @@ def story(
     model: Optional[str] = typer.Option(None),
     base_url: Optional[str] = typer.Option(None),
     api_key: Optional[str] = typer.Option(None),
+    strict: bool = typer.Option(False, "--strict", help="Abort on preflight failures"),
 ):
     """Generate a story/RP content from the influencer persona plus a named prompt."""
     influencer = _resolve(slug)
@@ -229,6 +297,7 @@ def story(
         if not context and confirm("Add extra context files?", default=False):
             context = [pick_folder("Context folder")]
     lang = _lang(lang)
+    _preflight(influencer, strict=strict)
     console.print(
         f"[dim]Influencer:[/dim] {influencer.display_name} | "
         f"[dim]Language:[/dim] {_show_lang(lang)} | "

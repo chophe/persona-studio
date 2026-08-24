@@ -23,6 +23,7 @@ persona-studio/
     ├── settings.py           # env/CLI API settings → ChatOpenAI factory
     ├── image_analyzer.py     # LangGraph batch image analysis
     ├── story.py              # report synthesis + story/RP generation
+    ├── health.py             # doctor/preflight checks (persona, portrait, images…)
     └── cli.py                # Typer CLI
 ```
 
@@ -58,6 +59,9 @@ uv run persona-studio personas
 uv run persona-studio show example-influencer
 uv run persona-studio prompts example-influencer
 
+# health check (slug optional; checks all when omitted)
+uv run persona-studio doctor example-influencer
+
 # stage 1: analyze screenshots -> per-image markdown reports (default Persian)
 uv run persona-studio analyze example-influencer human-level-interpretation
 
@@ -86,6 +90,25 @@ model responds in that language.
 
 Persona text, special-prompt blocks, and handle are automatically prepended as
 context to every analysis and story request.
+
+## Health checks
+
+`doctor <slug>` validates an influencer before a run. Run without a slug to
+check every registered influencer; exits `1` if any check fails.
+
+| Check | What it verifies |
+|---|---|
+| `config` / `load-config` | `config.yaml` present and schema-valid |
+| `.env` / `api-key` | `.env` exists, `OPENAI_API_KEY` set |
+| `persona` | persona file exists; size + line count, remaining `TODO` placeholders (warn) |
+| `portrait` | configured portrait exists; dimensions + format + file size |
+| `special-prompts` | every configured special prompt file loads |
+| `images` | top-level vs recursive count (including subfolders) + total size |
+| `outputs` | markdown counts in reports/syntheses/stories |
+
+`analyze`, `synthesize`, and `story` run a lightweight preflight automatically —
+warnings are printed but the run proceeds. Pass `--strict` to abort when any
+preflight check fails.
 
 ## Interactive mode
 

@@ -10,3 +10,4 @@ htmlcov/
 .mypy_cache/
 influencers/*/
 !influencers/_template/
+.DS_Store
