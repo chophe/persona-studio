@@ -7,6 +7,7 @@ from persona_studio.config import SHARED_PROMPTS_DIR, InfluencerConfig
 
 _REFERENCE_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp"}
+_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".flv", ".wmv", ".mpg", ".mpeg"}
 
 
 def find_prompt_file(prompt_name: str, influencer: InfluencerConfig | None = None) -> Path:
@@ -62,4 +63,12 @@ def list_images(folder: Path) -> list[Path]:
         return []
     return sorted(
         f for f in folder.rglob("*") if f.suffix.lower() in _IMAGE_EXTENSIONS and f.is_file()
+    )
+
+
+def list_videos(folder: Path) -> list[Path]:
+    if not folder.is_dir():
+        return []
+    return sorted(
+        f for f in folder.rglob("*") if f.suffix.lower() in _VIDEO_EXTENSIONS and f.is_file()
     )

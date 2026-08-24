@@ -18,7 +18,7 @@ from persona_studio.config import (
 from persona_studio.health import run_health_checks
 from persona_studio.image_analyzer import run_analysis
 from persona_studio.language import lang_label
-from persona_studio.prompts import list_images, list_prompts
+from persona_studio.prompts import list_images, list_prompts, list_videos
 from persona_studio.settings import resolve_settings
 from persona_studio.story import generate_story, synthesize_reports
 from persona_studio.ui import (
@@ -186,11 +186,15 @@ def prompts(slug: Optional[str] = typer.Argument(None)):
 @app.command()
 def analyze(
     slug: str,
-    prompt_name: str = typer.Argument(..., help="Prompt name (without .md)"),
+    prompt_name: Optional[str] = typer.Argument(
+        None,
+        help="Prompt name (without .md). Defaults to 'video_analysis' when --video is set.",
+    ),
     images_dir: Optional[Path] = typer.Option(None, "--images", help="Override images folder"),
     output_dir: Optional[Path] = typer.Option(None, "--out", help="Override output folder"),
+    video: bool = typer.Option(False, "--video", "-v", help="Analyze videos (mp4, mov, ...) instead of images"),
     no_persona: bool = typer.Option(False, "--no-persona", help="Skip persona context injection"),
-    rewrite: bool = typer.Option(False, "--rewrite", "-r", help="Re-analyze images even if a report already exists"),
+    rewrite: bool = typer.Option(False, "--rewrite", "-r", help="Re-analyze media even if a report already exists"),
     lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Result language: fa (Persian) | en"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="Prompt for inputs"),
     model: Optional[str] = typer.Option(None),
@@ -199,7 +203,7 @@ def analyze(
     max_workers: Optional[int] = typer.Option(None),
     strict: bool = typer.Option(False, "--strict", help="Abort on preflight failures"),
 ):
-    """Analyze a folder of images for an influencer using a named prompt."""
+    """Analyze a folder of images (or videos with --video) for an influencer using a named prompt."""
     influencer = _resolve(slug)
     settings = _settings(influencer, model, base_url, api_key, max_workers)
     if _interactive(interactive):
@@ -207,20 +211,29 @@ def analyze(
         if images_dir is None:
             images_dir = pick_folder("Images folder", influencer.images_dir())
         if output_dir is None:
-            output_dir = pick_folder("Output folder", influencer.reports_dir() / prompt_name)
+            output_dir = pick_folder("Output folder", influencer.reports_dir() / (prompt_name or "video_analysis"))
     lang = _lang(lang)
+    if video and not prompt_name:
+        prompt_name = "video_analysis"
+    if not prompt_name:
+        console.print("[red]Error:[/red] A prompt name is required (or use --video).")
+        raise typer.Exit(1)
     _preflight(influencer, strict=strict)
     source_dir = images_dir or influencer.images_dir()
-    if not list_images(source_dir):
+    media = "video" if video else "image"
+    files = list_videos(source_dir) if video else list_images(source_dir)
+    kind = "video" if video else "image"
+    if not files:
         console.print(
-            f"[red]No images found in {source_dir}.[/red] "
+            f"[red]No {kind} files found in {source_dir}.[/red] "
             f"Run [cyan]persona-studio doctor {slug}[/cyan] for details."
         )
         raise typer.Exit(1)
     console.print(
         f"[dim]Influencer:[/dim] {influencer.display_name} | "
         f"[dim]Language:[/dim] {_show_lang(lang)} | "
-        f"[dim]Prompt:[/dim] {prompt_name}"
+        f"[dim]Prompt:[/dim] {prompt_name} | "
+        f"[dim]Media:[/dim] {kind}"
     )
     results = run_analysis(
         influencer,
@@ -231,6 +244,7 @@ def analyze(
         include_persona=not no_persona,
         lang=lang,
         rewrite=rewrite,
+        media=media,
     )
     success = sum(1 for r in results.values() if r["status"] == "success")
     skipped = sum(1 for r in results.values() if r["status"] == "skipped")
